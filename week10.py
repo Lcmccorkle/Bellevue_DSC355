@@ -1,5 +1,3 @@
-pip install --upgrade pip
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -279,4 +277,5 @@ y_pred_logreg_tuned = logreg_grid.predict(X_test)
 print("\nTuned Logistic Regression Classification Report:")
 print(classification_report(y_test, y_pred_logreg_tuned))
 print(f"Tuned Logistic Regression Accuracy: {accuracy_score(y_test, y_pred_logreg_tuned):.4f}")
+
 
