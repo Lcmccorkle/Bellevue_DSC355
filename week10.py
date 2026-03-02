@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 
 # For nicer plots
 sns.set(style="whitegrid")
-%matplotlib inline
+# %matplotlib inline
 # Import data from CSV file
 
 df = pd.read_csv("eda_classification.csv")
@@ -277,5 +277,6 @@ y_pred_logreg_tuned = logreg_grid.predict(X_test)
 print("\nTuned Logistic Regression Classification Report:")
 print(classification_report(y_test, y_pred_logreg_tuned))
 print(f"Tuned Logistic Regression Accuracy: {accuracy_score(y_test, y_pred_logreg_tuned):.4f}")
+
 
 
