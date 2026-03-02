@@ -1,50 +1,13 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-# For nicer plots
-sns.set(style="whitegrid")
-# %matplotlib inline
-# Import data from CSV file
-
-df = pd.read_csv("eda_classification.csv")
-
-print("Shape:", df.shape)
-print("\nColumns:", df.columns.tolist())
-df.head(3)
-
-# Check balance
-print(df['y'].value_counts(normalize=True).round(3) * 100)
-sns.countplot(x='y', data=df)
-plt.title("Target Distribution")
-plt.show()
-
-# Standardize month names
-month_map = {
-    'sept.': 'Sep', 'sept': 'Sep', 'Dev': 'Dec', 'thurday': 'Thursday',
-    'wed': 'Wednesday', 'thur': 'Thursday', 'tuesday': 'Tuesday',
-    'wednesday': 'Wednesday', 'friday': 'Friday'
-}
-df['x1'] = df['x1'].replace(month_map)
-df['x14'] = df['x14'].replace(month_map)  # typo in original, but just in case
-
-# Fix brand names
-brand_map = {'volkswagon': 'volkswagen', 'chrystler': 'chrysler'}
-df['x13'] = df['x13'].replace(brand_map)
-
-# Fix size
-df['x17'] = df['x17'].str.lower()  # just in case
-
-# Parse x7: currency strings like "($1,306.52)" or "$1,213.37 "
+# Function to clean currency
 def clean_currency(val):
     if pd.isna(val):
         return np.nan
@@ -54,9 +17,7 @@ def clean_currency(val):
     except:
         return np.nan
 
-df['x7_clean'] = df['x7'].apply(clean_currency)
-
-# Parse x11: percentages like "0.01%", "-0.01%", "0.00%"
+# Function to clean percent
 def clean_percent(val):
     if pd.isna(val):
         return np.nan
@@ -66,217 +27,128 @@ def clean_percent(val):
     except:
         return np.nan
 
-df['x11_clean'] = df['x11'].apply(clean_percent)
+# Load and prepare data
+@st.cache_data
+def load_and_train_model():
+    df = pd.read_csv("eda_classification.csv")
 
-# Drop originals if you want (optional)
-# df = df.drop(columns=['x7', 'x11'])
+    # Standardize month names
+    month_map = {
+        'sept.': 'Sep', 'sept': 'Sep', 'Dev': 'Dec', 'thurday': 'Thursday',
+        'wed': 'Wednesday', 'thur': 'Thursday', 'tuesday': 'Tuesday',
+        'wednesday': 'Wednesday', 'friday': 'Friday'
+    }
+    df['x1'] = df['x1'].replace(month_map)
+    df['x14'] = df['x14'].replace(month_map)
 
-#Check for missing values after parsing
-print("Missing values:\n", df.isnull().sum().sort_values(ascending=False).head(10))
+    # Fix brand names
+    brand_map = {'volkswagon': 'volkswagen', 'chrystler': 'chrysler'}
+    df['x13'] = df['x13'].replace(brand_map)
 
-# Drop rows with any missing (very few)
-df = df.dropna()
-print("\nShape after dropna:", df.shape)
+    # Fix size
+    df['x17'] = df['x17'].str.lower()
 
-#EDA numerical features correlatoin w/target
-num_cols = ['x0','x2','x3','x4','x5','x6','x7_clean','x8','x9','x10','x11_clean','x12','x15','x16']
-corr = df[num_cols + ['y']].corr()['y'].sort_values(ascending=False)
-print("Correlation with y:\n", corr.round(4))
+    # Parse x7 and x11
+    df['x7_clean'] = df['x7'].apply(clean_currency)
+    df['x11_clean'] = df['x11'].apply(clean_percent)
 
-# Heatmap (optional – can be slow with many cols)
-# plt.figure(figsize=(10,8))
-# sns.heatmap(df[num_cols + ['y']].corr(), annot=False, cmap='coolwarm')
-# plt.title("Feature Correlations")
-# plt.show()
+    # Drop rows with missing values
+    df = df.dropna()
 
-#Categorical Features - mean target by category
-cat_cols = ['x1', 'x13', 'x14', 'x17']
+    # Features (using cleaned versions)
+    numeric_features = ['x0', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7_clean', 'x8', 'x9', 'x10', 'x11_clean', 'x12', 'x15', 'x16']
+    categorical_features = ['x1', 'x13', 'x14', 'x17']
+    features = numeric_features + categorical_features
 
-for col in cat_cols:
-    print(f"\n{'y'} rate by {col}:")
-    print(df.groupby(col)['y'].mean().sort_values(ascending=False).round(3))
-	
-	# Define feature columns (using cleaned versions)
-features = ['x0','x2','x3','x4','x5','x6','x7_clean','x8','x9','x10',
-            'x11_clean','x12','x15','x16','x1','x13','x14','x17']
+    X = df[features]
+    y = df['y']
 
-X = df[features]
-y = df['y']
-
-print("X shape:", X.shape)
-
-#train/test split
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-print("Train:", X_train.shape, y_train.shape)
-print("Test :", X_test.shape, y_test.shape)
-
-#Build preprocessing + Model Pipeline
-numeric_features = ['x0','x2','x3','x4','x5','x6','x7_clean','x8','x9','x10',
-                    'x11_clean','x12','x15','x16']
-categorical_features = ['x1','x13','x14','x17']
-
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', 'passthrough', numeric_features),  # no scaling needed for RF
-        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_features)
-    ])
-
-rf_pipeline = Pipeline(steps=[
-    ('preprocessor', preprocessor),
-    ('classifier', RandomForestClassifier(n_estimators=100, random_state=42))
-])
-
-rf_pipeline.fit(X_train, y_train)
-
-#evaluate
-y_pred = rf_pipeline.predict(X_test)
-
-print("Accuracy:", round(accuracy_score(y_test, y_pred), 4))
-print("\nClassification Report:\n", classification_report(y_test, y_pred))
-print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
-
-#Logistic REgression for comparison
-logreg_pipeline = Pipeline(steps=[
-    ('preprocessor', ColumnTransformer(
+    # Preprocessor
+    preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numeric_features),
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_features)
-        ])),
-    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
-])
+            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+        ])
 
-logreg_pipeline.fit(X_train, y_train)
-y_pred_lr = logreg_pipeline.predict(X_test)
+    # Pipeline with tuned Logistic Regression (best from notebook)
+    pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                               ('classifier', LogisticRegression(C=100, penalty='l2', solver='lbfgs', max_iter=1000, random_state=42))])
 
-print("Logistic Regression Accuracy:", round(accuracy_score(y_test, y_pred_lr), 4))
-print("\nClassification Report:\n", classification_report(y_test, y_pred_lr))
+    # Train on full data for deployment
+    pipeline.fit(X, y)
 
-# Feature importance from random forest
-# Get feature names after one-hot encoding
-feature_names = numeric_features + list(
-    rf_pipeline.named_steps['preprocessor']
-    .named_transformers_['cat']
-    .get_feature_names_out(categorical_features)
-)
+    return pipeline, df
 
-importances = rf_pipeline.named_steps['classifier'].feature_importances_
-imp_df = pd.Series(importances, index=feature_names).sort_values(ascending=False)
+# Load model and data
+pipeline, df = load_and_train_model()
 
-print("Top 15 features by importance:")
-print(imp_df.head(15).round(4))
+# Streamlit App
+st.title("Predictive Model Dashboard (DSC355_Week7)")
 
-# Plot
-plt.figure(figsize=(10,6))
-imp_df.head(20).plot(kind='barh')
-plt.title("Top 20 Feature Importances (Random Forest)")
-plt.gca().invert_yaxis()
-plt.show()
+st.markdown("""
+This app recreates a predictive model dashboard similar to the one described in *Hands-On Predictive Analytics with Python* Chapter 9, 
+but using Streamlit instead of Dash, and deploying the classification model from the provided DSC355_Week7 notebook. 
+The model predicts the binary target 'y' based on input features. Note: Model performance is near-random (~50% accuracy) as per notebook analysis.
+""")
 
-# define features and split data.
-# Numeric features including cleaned ones
-numeric_features = ['x0', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7_clean', 'x8', 'x9', 'x10', 'x11_clean', 'x12', 'x15', 'x16']
+# Input form
+with st.form("prediction_form"):
+    st.header("Enter Feature Values")
 
-# Categorical features
-categorical_features = ['x1', 'x13', 'x14', 'x17']
+    # Numerical inputs (use data min/max/mean for defaults)
+    x0 = st.number_input("x0", min_value=float(df['x0'].min()), max_value=float(df['x0'].max()), value=float(df['x0'].mean()))
+    x2 = st.number_input("x2", min_value=float(df['x2'].min()), max_value=float(df['x2'].max()), value=float(df['x2'].mean()))
+    x3 = st.number_input("x3", min_value=float(df['x3'].min()), max_value=float(df['x3'].max()), value=float(df['x3'].mean()))
+    x4 = st.number_input("x4", min_value=float(df['x4'].min()), max_value=float(df['x4'].max()), value=float(df['x4'].mean()))
+    x5 = st.number_input("x5", min_value=float(df['x5'].min()), max_value=float(df['x5'].max()), value=float(df['x5'].mean()))
+    x6 = st.number_input("x6", min_value=float(df['x6'].min()), max_value=float(df['x6'].max()), value=float(df['x6'].mean()))
+    x7 = st.text_input("x7 (currency, e.g., '$1,234.56' or '($1,234.56)')", value="$0.00")
+    x8 = st.number_input("x8", min_value=float(df['x8'].min()), max_value=float(df['x8'].max()), value=float(df['x8'].mean()))
+    x9 = st.number_input("x9", min_value=float(df['x9'].min()), max_value=float(df['x9'].max()), value=float(df['x9'].mean()))
+    x10 = st.number_input("x10", min_value=float(df['x10'].min()), max_value=float(df['x10'].max()), value=float(df['x10'].mean()))
+    x11 = st.text_input("x11 (percent, e.g., '0.01%' or '-0.01%')", value="0.00%")
+    x12 = st.number_input("x12", min_value=float(df['x12'].min()), max_value=float(df['x12'].max()), value=float(df['x12'].mean()))
+    x15 = st.number_input("x15", min_value=float(df['x15'].min()), max_value=float(df['x15'].max()), value=float(df['x15'].mean()))
+    x16 = st.number_input("x16", min_value=float(df['x16'].min()), max_value=float(df['x16'].max()), value=float(df['x16'].mean()))
 
-# Target
-X = df[numeric_features + categorical_features]
-y = df['y']
+    # Categorical inputs
+    x1 = st.selectbox("x1 (month)", options=sorted(df['x1'].unique()))
+    x13 = st.selectbox("x13 (brand)", options=sorted(df['x13'].unique()))
+    x14 = st.selectbox("x14 (day)", options=sorted(df['x14'].unique()))
+    x17 = st.selectbox("x17 (size)", options=sorted(df['x17'].unique()))
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    submit = st.form_submit_button("Predict")
 
-# train baseline models
-# Preprocessor
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', StandardScaler(), numeric_features),
-        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
-    ])
+if submit:
+    # Create input DataFrame
+    input_data = {
+        'x0': x0, 'x2': x2, 'x3': x3, 'x4': x4, 'x5': x5, 'x6': x6,
+        'x7': x7, 'x8': x8, 'x9': x9, 'x10': x10, 'x11': x11, 'x12': x12,
+        'x15': x15, 'x16': x16, 'x1': x1, 'x13': x13, 'x14': x14, 'x17': x17
+    }
+    input_df = pd.DataFrame([input_data])
 
-# Random Forest Pipeline
-rf_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                              ('classifier', RandomForestClassifier(random_state=42))])
+    # Apply cleaning
+    input_df['x7_clean'] = input_df['x7'].apply(clean_currency)
+    input_df['x11_clean'] = input_df['x11'].apply(clean_percent)
 
-rf_pipeline.fit(X_train, y_train)
+    # Select features for prediction (drop raw x7, x11)
+    input_features = input_df[['x0', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7_clean', 'x8', 'x9', 'x10',
+                               'x11_clean', 'x12', 'x15', 'x16', 'x1', 'x13', 'x14', 'x17']]
 
-# Logistic Regression Pipeline
-logreg_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                                  ('classifier', LogisticRegression(max_iter=1000, random_state=42))])
+    # Predict
+    prediction = pipeline.predict(input_features)[0]
+    proba = pipeline.predict_proba(input_features)[0][1]  # Probability of class 1
 
-logreg_pipeline.fit(X_train, y_train)
+    st.header("Prediction Result")
+    st.write(f"Predicted y: **{prediction}**")
+    st.write(f"Probability of y=1: **{proba:.2%}**")
 
-# evaluate with classification metrics
-# Predictions
-y_pred_rf = rf_pipeline.predict(X_test)
-y_pred_logreg = logreg_pipeline.predict(X_test)
-
-# Confusion Matrix for Random Forest
-print("Random Forest Confusion Matrix:")
-print(confusion_matrix(y_test, y_pred_rf))
-
-# Classification Report for Random Forest
-print("\nRandom Forest Classification Report:")
-print(classification_report(y_test, y_pred_rf))
-
-# Accuracy for Random Forest
-print(f"Random Forest Accuracy: {accuracy_score(y_test, y_pred_rf):.4f}")
-
-# Confusion Matrix for Logistic Regression
-print("\nLogistic Regression Confusion Matrix:")
-print(confusion_matrix(y_test, y_pred_logreg))
-
-# Classification Report for Logistic Regression
-print("\nLogistic Regression Classification Report:")
-print(classification_report(y_test, y_pred_logreg))
-
-# Accuracy for Logistic Regression
-print(f"Logistic Regression Accuracy: {accuracy_score(y_test, y_pred_logreg):.4f}")
-
-# Perform tuning with hyperparameters and cross-validation
-from sklearn.model_selection import GridSearchCV
-
-# Tune Random Forest
-rf_param_grid = {
-    'classifier__n_estimators': [50, 100, 200],
-    'classifier__max_depth': [None, 10, 20],
-    'classifier__min_samples_split': [2, 5, 10],
-    'classifier__min_samples_leaf': [1, 2, 4]
-}
-
-rf_grid = GridSearchCV(rf_pipeline, rf_param_grid, cv=5, scoring='f1', n_jobs=-1)
-rf_grid.fit(X_train, y_train)
-
-print(f"Best RF Params: {rf_grid.best_params_}")
-print(f"Best RF CV F1-Score: {rf_grid.best_score_:.4f}")
-
-# Evaluate tuned RF on test set
-y_pred_rf_tuned = rf_grid.predict(X_test)
-print("\nTuned Random Forest Classification Report:")
-print(classification_report(y_test, y_pred_rf_tuned))
-print(f"Tuned Random Forest Accuracy: {accuracy_score(y_test, y_pred_rf_tuned):.4f}")
-
-# Tune Logistic Regression
-logreg_param_grid = {
-    'classifier__C': [0.01, 0.1, 1, 10, 100],
-    'classifier__solver': ['liblinear', 'lbfgs'],
-    'classifier__penalty': ['l2']  # l1 for liblinear only, but keeping simple
-}
-
-logreg_grid = GridSearchCV(logreg_pipeline, logreg_param_grid, cv=5, scoring='f1', n_jobs=-1)
-logreg_grid.fit(X_train, y_train)
-
-print(f"\nBest LR Params: {logreg_grid.best_params_}")
-print(f"Best LR CV F1-Score: {logreg_grid.best_score_:.4f}")
-
-# Evaluate tuned LR on test set
-y_pred_logreg_tuned = logreg_grid.predict(X_test)
-print("\nTuned Logistic Regression Classification Report:")
-print(classification_report(y_test, y_pred_logreg_tuned))
-print(f"Tuned Logistic Regression Accuracy: {accuracy_score(y_test, y_pred_logreg_tuned):.4f}")
-
-
-
+# Add section for model info
+with st.expander("Model Details"):
+    st.markdown("""
+    - **Model**: Tuned Logistic Regression (C=100, l2 penalty, lbfgs solver)
+    - **Training**: Fit on full cleaned dataset (~9968 samples)
+    - **Expected Accuracy**: ~50.7% (near random, as per notebook analysis)
+    - For production, consider pickling the model instead of retraining on load.
+    """)
