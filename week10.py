@@ -83,12 +83,12 @@ def load_and_train_model():
 pipeline, df = load_and_train_model()
 
 # Streamlit App
-st.title("Predictive Model Dashboard (DSC355_Week7)")
+st.title("Predictive Model Dashboard")
 
 st.markdown("""
 This app recreates a predictive model dashboard similar to the one described in *Hands-On Predictive Analytics with Python* Chapter 9, 
-but using Streamlit instead of Dash, and deploying the classification model from the provided DSC355_Week7 notebook. 
-The model predicts the binary target 'y' based on input features. Note: Model performance is near-random (~50% accuracy) as per notebook analysis.
+but using Streamlit instead of Dash, and deploying the classification model from the provided Week7 model. 
+The model predicts the binary target 'y' based on input features. Note: Model performance is near-random.
 """)
 
 # Input form
@@ -152,3 +152,4 @@ with st.expander("Model Details"):
     - **Expected Accuracy**: ~50.7% (near random, as per notebook analysis)
     - For production, consider pickling the model instead of retraining on load.
     """)
+
