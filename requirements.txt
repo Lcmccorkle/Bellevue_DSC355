@@ -2,11 +2,4 @@ pandas
 numpy
 matplotlib
 seaborn
-sklearn.model_selection
-sklearn.preprocessing
-sklearn.compose
-sklearn.pipline
-sklearn.ensemble
-sklearn.linear_model
-sklearn.metrics
-
+sklearn
