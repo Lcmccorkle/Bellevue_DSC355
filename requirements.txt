@@ -1,5 +1,4 @@
-pandas>=2.2                 # Latest is 3.0+ (Jan 2026), but >=2.2 is very safe
-numpy>=2.1                  # Excellent — 2.1+ has great 3.12/3.13 support
-matplotlib>=3.10            # Bumped from >=3.9; latest is 3.10.8 (Dec 2025)
-seaborn>=0.13.2             # Still current — no major newer stable yet
-scikit-learn>=1.8           # Bumped from >=1.6; latest is 1.8.0 (Dec 2025), better for 3.12+
+streamlit==1.41.1
+pandas==2.2.3
+numpy==2.2.0
+scikit-learn==1.6.0
