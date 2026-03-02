@@ -1,5 +1,5 @@
-pandas
-numpy
-matplotlib
-seaborn
-sklearn
+pandas>=2.2
+numpy>=2.1          # Required for recent Python versions (e.g. 3.13+)
+matplotlib>=3.9
+seaborn>=0.13.2
+scikit-learn>=1.6   # Covers ALL the sklearn submodules you need (model_selection, preprocessing, compose, pipeline, ensemble, linear_model, metrics)
