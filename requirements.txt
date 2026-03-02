@@ -1,6 +1,6 @@
 pandas
 numpy
-matplotlib.pyplot
+matplotlib
 seaborn
 skleran.model_selection
 sklearn.preprocessing
